@@ -15,7 +15,9 @@ class Server(paramiko.ServerInterface):
         self.event = threading.Event()
     
     def check_channel_request(self, kind: str, chanid: int) -> int:
-        return super().check_channel_request(kind, chanid)
+        if kind == 'session':
+            return paramiko.OPEN_SUCCEEDED
+        return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
 
     def check_auth_password(self, username: str, password: str) -> int:
         if (username == usrnmae) and (password == passwd):
@@ -29,12 +31,13 @@ try:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((server, ssh_port))
-    sock.listen(1)
+    sock.listen(100)
     print("[OK] Listening for connection...")
     client, addr = sock.accept()
 except Exception as E:
     print("[ERR] Listening did not work: ", str(E))
     sys.exit(1)
+
 print("[OK] Got a connection! ", addr[0])
 
 try:
@@ -45,7 +48,7 @@ try:
         bhSession.start_server(server=server)
     except paramiko.SSHException as x:
         print("[ERR] Negotiating SSH did not succeed")
-    chan = bhSession.accept()
+    chan = bhSession.accept(20)
     print("[OK] Authenticated!")
     print(chan.recv(1024))
     chan.send("Welcome to bh_ssh!")
@@ -54,7 +57,7 @@ try:
             command = input("Enter command: ").strip('\n')
             if command != 'exit':
                 chan.send(command)
-                print(chan.recv(1024) + '\n')
+                print(chan.recv(1024).decode() + '\n')
             else:
                 chan.send('exit')
                 print("Exiting...")
